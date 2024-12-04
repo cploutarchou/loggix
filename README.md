@@ -1,93 +1,136 @@
-# loggix
+# Loggix: A Modern Structured Logger for Rust
 
+A fully-featured structured logger for Rust, inspired by [Logrus](https://github.com/sirupsen/logrus). Loggix combines the power of structured logging with Rust's safety and performance.
 
+## Features
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin http://git.cydevcloud.com/libs/loggix.git
-git branch -M master
-git push -uf origin master
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](http://git.cydevcloud.com/libs/loggix/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+- Log levels: Trace, Debug, Info, Warn, Error, Fatal, Panic
+- Structured logging with fields
+- Hooks for actions on log entries
+- Formatters:
+  - Text formatter with colors (default)
+  - JSON formatter
+- Thread-safe
+- Global and local logger instances
+- Customizable output (io::Write)
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Basic Logging
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```rust
+use loggix::{info, debug, warn, error, set_level, Level};
+
+fn main() {
+    // Set global log level
+    set_level(Level::Debug);
+
+    // Log messages
+    info("Application started").unwrap();
+    debug("Debug information").unwrap();
+    warn("Warning message").unwrap();
+    error("Error occurred").unwrap();
+}
+```
+
+### Structured Logging with Fields
+
+```rust
+use loggix::{Logger, with_field, with_fields};
+use std::collections::HashMap;
+
+fn main() {
+    // Using with_field
+    with_field("key", "value")
+        .with_field("number", 42)
+        .info("Message with fields")
+        .unwrap();
+
+    // Using with_fields
+    let mut fields = HashMap::new();
+    fields.insert("key".to_string(), serde_json::json!("value"));
+    fields.insert("number".to_string(), serde_json::json!(42));
+    
+    with_fields(fields)
+        .info("Message with multiple fields")
+        .unwrap();
+}
+```
+
+### Custom Logger Instance
+
+```rust
+use loggix::{Logger, Level, JSONFormatter};
+
+fn main() {
+    let logger = Logger::new()
+        .with_level(Level::Info)
+        .with_formatter(JSONFormatter::default());
+
+    logger.info("Using JSON formatter").unwrap();
+}
+```
+
+### Custom Hooks
+
+```rust
+use loggix::{Logger, Hook, Entry};
+use std::error::Error;
+
+struct MetricsHook;
+
+impl Hook for MetricsHook {
+    fn fire(&self, entry: &Entry) -> Result<(), Box<dyn Error>> {
+        // Send log entry to metrics system
+        println!("Metrics: {}", entry.level);
+        Ok(())
+    }
+}
+
+fn main() {
+    let mut logger = Logger::new();
+    logger.add_hook(MetricsHook);
+    logger.info("This will trigger the metrics hook").unwrap();
+}
+```
+
+### Custom Output
+
+```rust
+use loggix::Logger;
+use std::fs::File;
+
+fn main() {
+    let mut logger = Logger::new();
+    let file = File::create("app.log").unwrap();
+    logger.set_output(file);
+    logger.info("This goes to app.log").unwrap();
+}
+```
+
+## Installation
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+loggix = "0.1.0"
+```
+
+## Why Loggix?
+
+Loggix combines the best features of structured logging with Rust's safety and performance:
+
+- **Structured Logging**: Log entries are more than just strings; they're structured data that can be easily parsed and analyzed.
+- **Type Safety**: Leverages Rust's type system to prevent common logging mistakes.
+- **Performance**: Built with performance in mind, using efficient data structures and minimal allocations.
+- **Flexibility**: Easily extensible with custom formatters and hooks.
+- **Thread Safety**: Safe to use in concurrent applications.
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+MIT License
