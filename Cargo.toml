@@ -3,9 +3,9 @@ name = "loggix"
 version = "0.1.0"
 edition = "2021"
 description = "A powerful, structured logging library for Rust inspired by Logrus"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Christos Ploutarchou <cploutarchou@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/yourusername/loggix"
+repository = "https://github.com/cploutarchou/loggix"
 keywords = ["logging", "structured", "log", "json", "logrus"]
 categories = ["development-tools::debugging"]
 

@@ -1,15 +1,19 @@
-use std::fmt;
-use std::sync::{Arc, Mutex};
-use std::ops::Deref;
-use chrono::Local;
-use colored::*;
+use std::{collections::HashMap, fmt, io::{self, Write}, sync::{Arc, Mutex}};
+use chrono::{DateTime, Utc};
+use colored::Colorize;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::error::Error;
+use lazy_static::lazy_static;
 
-/// Log levels similar to Logrus
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+// Re-exports
+pub use chrono;
+pub use colored;
+pub use serde;
+pub use serde_json;
+
+/// Log levels supported by Loggix
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Level {
     Trace,
     Debug,
@@ -19,183 +23,6 @@ pub enum Level {
     Fatal,
     Panic,
 }
-
-/// A trait for implementing hooks
-pub trait Hook: Send + Sync {
-    fn fire(&self, entry: &Entry) -> Result<(), Box<dyn Error>>;
-}
-
-/// Fields type alias for structured logging
-pub type Fields = HashMap<String, Value>;
-
-/// Logger struct with hooks and formatter support
-pub struct Logger {
-    level: Level,
-    formatter: Arc<dyn Formatter>,
-    hooks: Vec<Arc<dyn Hook>>,
-    out: Arc<Mutex<Box<dyn std::io::Write + Send>>>,
-}
-
-impl fmt::Debug for Logger {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Logger")
-            .field("level", &self.level)
-            .field("hooks_count", &self.hooks.len())
-            .finish()
-    }
-}
-
-/// Logging entry struct with fields support
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Entry {
-    pub level: Level,
-    pub message: String,
-    pub time: chrono::DateTime<Local>,
-    pub fields: Fields,
-    #[serde(skip)]
-    logger: Option<Arc<Logger>>,
-}
-
-impl Entry {
-    pub fn new(logger: Arc<Logger>) -> Self {
-        Entry {
-            level: Level::Info,
-            message: String::new(),
-            time: Local::now(),
-            fields: Fields::new(),
-            logger: Some(logger),
-        }
-    }
-
-    pub fn with_field<T: Serialize>(mut self, key: &str, value: T) -> Self {
-        if let Ok(value) = serde_json::to_value(value) {
-            self.fields.insert(key.to_string(), value);
-        }
-        self
-    }
-
-    pub fn with_fields(mut self, fields: Fields) -> Self {
-        self.fields.extend(fields);
-        self
-    }
-
-    pub fn log(&self) -> Result<(), Box<dyn Error>> {
-        if let Some(logger) = &self.logger {
-            logger.process_entry(self)?;
-        }
-        Ok(())
-    }
-}
-
-/// Trait for log formatting
-pub trait Formatter: Send + Sync {
-    fn format(&self, entry: &Entry) -> Result<String, Box<dyn Error>>;
-}
-
-/// Text formatter with customizable timestamp format
-#[derive(Clone)]
-pub struct TextFormatter {
-    timestamp_format: String,
-    full_timestamp: bool,
-}
-
-impl fmt::Debug for TextFormatter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TextFormatter")
-            .field("timestamp_format", &self.timestamp_format)
-            .field("full_timestamp", &self.full_timestamp)
-            .finish()
-    }
-}
-
-impl Default for TextFormatter {
-    fn default() -> Self {
-        TextFormatter {
-            timestamp_format: "%Y-%m-%d %H:%M:%S".to_string(),
-            full_timestamp: true,
-        }
-    }
-}
-
-impl Formatter for TextFormatter {
-    fn format(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
-        let level_str = entry.level.to_string();
-        let level_color = match entry.level {
-            Level::Trace => "bright black",
-            Level::Debug => "blue",
-            Level::Info => "green",
-            Level::Warn => "yellow",
-            Level::Error => "red",
-            Level::Fatal => "magenta",
-            Level::Panic => "red bold",
-        };
-
-        let time_str = if self.full_timestamp {
-            entry.time.format(&self.timestamp_format).to_string()
-        } else {
-            entry.time.format("%H:%M:%S").to_string()
-        };
-
-        let fields_str = if !entry.fields.is_empty() {
-            let fields: Vec<String> = entry.fields
-                .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect();
-            format!(" {}", fields.join(" "))
-        } else {
-            String::new()
-        };
-
-        Ok(format!(
-            "{} [{}] {}{}\n",
-            time_str.bright_black(),
-            level_str.color(level_color),
-            entry.message,
-            fields_str
-        ))
-    }
-}
-
-/// JSON formatter
-#[derive(Clone)]
-pub struct JSONFormatter {
-    timestamp_format: String,
-}
-
-impl fmt::Debug for JSONFormatter {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("JSONFormatter")
-            .field("timestamp_format", &self.timestamp_format)
-            .finish()
-    }
-}
-
-impl Default for JSONFormatter {
-    fn default() -> Self {
-        JSONFormatter {
-            timestamp_format: "%Y-%m-%dT%H:%M:%S%:z".to_string(),
-        }
-    }
-}
-
-impl Formatter for JSONFormatter {
-    fn format(&self, entry: &Entry) -> Result<String, Box<dyn Error>> {
-        let mut output = serde_json::Map::new();
-        output.insert("level".to_string(), Value::String(entry.level.to_string()));
-        output.insert("msg".to_string(), Value::String(entry.message.clone()));
-        output.insert("time".to_string(), Value::String(entry.time.format(&self.timestamp_format).to_string()));
-        
-        for (key, value) in &entry.fields {
-            output.insert(key.clone(), value.clone());
-        }
-
-        Ok(serde_json::to_string(&output)? + "\n")
-    }
-}
-
-// Implement Send and Sync for Logger
-unsafe impl Send for Logger {}
-unsafe impl Sync for Logger {}
 
 impl fmt::Display for Level {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -211,233 +38,495 @@ impl fmt::Display for Level {
     }
 }
 
-impl Logger {
+/// Fields type for structured logging
+pub type Fields = HashMap<String, Value>;
+
+/// A log entry containing all information about a log event
+#[derive(Debug, Clone, Serialize)]
+pub struct Entry<'a> {
+    pub timestamp: DateTime<Utc>,
+    pub level: Level,
+    pub message: String,
+    pub fields: Fields,
+    #[serde(skip)]
+    pub logger: &'a Logger,
+}
+
+/// Hook trait for implementing custom hooks
+pub trait Hook: Send + Sync {
+    fn levels(&self) -> Vec<Level>;
+    fn fire(&self, entry: &Entry) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+/// Formatter trait for implementing custom formatters
+pub trait Formatter: Send + Sync {
+    fn format(&self, entry: &Entry) -> Result<Vec<u8>, Box<dyn std::error::Error>>;
+}
+
+/// Text formatter with optional colors
+#[derive(Debug, Clone)]
+pub struct TextFormatter {
+    timestamp_format: String,
+    colors: bool,
+    full_timestamp: bool,
+}
+
+impl Default for TextFormatter {
+    fn default() -> Self {
+        Self {
+            timestamp_format: "%Y-%m-%dT%H:%M:%S%.3fZ".to_string(),
+            colors: true,
+            full_timestamp: true,
+        }
+    }
+}
+
+impl TextFormatter {
     pub fn new() -> Self {
-        Logger {
-            level: Level::Info,
-            formatter: Arc::new(TextFormatter::default()),
-            hooks: Vec::new(),
-            out: Arc::new(Mutex::new(Box::new(std::io::stdout()))),
-        }
+        Self::default()
     }
-
-    pub fn with_level(mut self, level: Level) -> Self {
-        self.level = level;
+    
+    pub fn timestamp_format(mut self, format: &str) -> Self {
+        self.timestamp_format = format.to_string();
         self
     }
-
-    pub fn with_formatter<F: Formatter + 'static>(mut self, formatter: F) -> Self {
-        self.formatter = Arc::new(formatter);
+    
+    pub fn colors(mut self, enabled: bool) -> Self {
+        self.colors = enabled;
         self
     }
-
-    pub fn add_hook<H: Hook + 'static>(&mut self, hook: H) {
-        self.hooks.push(Arc::new(hook));
+    
+    pub fn full_timestamp(mut self, enabled: bool) -> Self {
+        self.full_timestamp = enabled;
+        self
     }
-
-    pub fn set_output<W: std::io::Write + Send + 'static>(&mut self, output: W) {
-        self.out = Arc::new(Mutex::new(Box::new(output)));
+    
+    pub fn build(self) -> Self {
+        self
     }
+}
 
-    fn process_entry(&self, entry: &Entry) -> Result<(), Box<dyn Error>> {
-        if entry.level < self.level {
-            return Ok(());
+impl Formatter for TextFormatter {
+    fn format(&self, entry: &Entry) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut output = Vec::new();
+        
+        // Format timestamp
+        let timestamp = if self.full_timestamp {
+            entry.timestamp.format(&self.timestamp_format).to_string()
+        } else {
+            entry.timestamp.format("%H:%M:%S").to_string()
+        };
+        
+        // Format level with optional colors
+        let level = if self.colors {
+            match entry.level {
+                Level::Trace => entry.level.to_string().white(),
+                Level::Debug => entry.level.to_string().blue(),
+                Level::Info => entry.level.to_string().green(),
+                Level::Warn => entry.level.to_string().yellow(),
+                Level::Error => entry.level.to_string().red(),
+                Level::Fatal => entry.level.to_string().red().bold(),
+                Level::Panic => entry.level.to_string().red().bold(),
+            }.to_string()
+        } else {
+            entry.level.to_string()
+        };
+        
+        // Write the log line
+        write!(output, "[{}] [{}] {}", timestamp, level, entry.message)?;
+        
+        // Add fields if present
+        if !entry.fields.is_empty() {
+            for (key, value) in &entry.fields {
+                write!(output, " {}={}", key, value)?;
+            }
         }
+        
+        write!(output, "\n")?;
+        Ok(output)
+    }
+}
 
-        // Fire all hooks
-        for hook in &self.hooks {
-            hook.fire(entry)?;
+/// JSON formatter for machine-readable output
+#[derive(Debug, Clone)]
+pub struct JSONFormatter {
+    pretty: bool,
+}
+
+impl JSONFormatter {
+    pub fn new() -> Self {
+        Self { pretty: false }
+    }
+    
+    pub fn pretty(mut self, enabled: bool) -> Self {
+        self.pretty = enabled;
+        self
+    }
+}
+
+impl Default for JSONFormatter {
+    fn default() -> Self {
+        Self { pretty: false }
+    }
+}
+
+impl Formatter for JSONFormatter {
+    fn format(&self, entry: &Entry) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut output = Vec::new();
+        if self.pretty {
+            serde_json::to_writer_pretty(&mut output, &entry)?;
+        } else {
+            serde_json::to_writer(&mut output, &entry)?;
         }
-
-        // Format and write entry
-        let formatted = self.formatter.format(entry)?;
-        self.out.lock().unwrap().write_all(formatted.as_bytes())?;
-        self.out.lock().unwrap().flush()?;
-
-        // Handle panic and fatal levels
-        match entry.level {
-            Level::Panic => panic!("{}", entry.message),
-            Level::Fatal => std::process::exit(1),
-            _ => Ok(()),
-        }
+        output.write_all(b"\n")?;
+        Ok(output)
     }
+}
 
-    pub fn entry(&self) -> Entry {
-        Entry::new(Arc::new(self.clone()))
-    }
+/// The main logger struct
+pub struct Logger {
+    level: Level,
+    formatter: Box<dyn Formatter>,
+    hooks: Vec<Box<dyn Hook>>,
+    output: Arc<Mutex<Box<dyn Write + Send>>>,
+}
 
-    pub fn log(&self, level: Level, msg: &str) -> Result<(), Box<dyn Error>> {
-        self.entry()
-            .with_field("level", level)
-            .with_field("msg", msg)
-            .log()
-    }
-
-    pub fn trace(&self, msg: &str) -> Result<(), Box<dyn Error>> {
-        self.log(Level::Trace, msg)
-    }
-
-    pub fn debug(&self, msg: &str) -> Result<(), Box<dyn Error>> {
-        self.log(Level::Debug, msg)
-    }
-
-    pub fn info(&self, msg: &str) -> Result<(), Box<dyn Error>> {
-        self.log(Level::Info, msg)
-    }
-
-    pub fn warn(&self, msg: &str) -> Result<(), Box<dyn Error>> {
-        self.log(Level::Warn, msg)
-    }
-
-    pub fn error(&self, msg: &str) -> Result<(), Box<dyn Error>> {
-        self.log(Level::Error, msg)
-    }
-
-    pub fn fatal(&self, msg: &str) -> ! {
-        self.log(Level::Fatal, msg).unwrap();
-        std::process::exit(1)
-    }
-
-    pub fn panic(&self, msg: &str) -> ! {
-        self.log(Level::Panic, msg).unwrap();
-        panic!("{}", msg)
+impl fmt::Debug for Logger {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Logger")
+            .field("level", &self.level)
+            .field("hooks_count", &self.hooks.len())
+            .finish()
     }
 }
 
 impl Clone for Logger {
     fn clone(&self) -> Self {
-        Logger {
+        Self {
             level: self.level,
-            formatter: Arc::clone(&self.formatter),
-            hooks: self.hooks.clone(),
-            out: Arc::clone(&self.out),
+            formatter: Box::new(TextFormatter::default()),
+            hooks: Vec::new(),
+            output: Arc::clone(&self.output),
         }
     }
 }
 
-impl Default for Logger {
-    fn default() -> Self {
-        Logger::new()
+impl Logger {
+    pub fn new() -> Self {
+        Self {
+            level: Level::Info,
+            formatter: Box::new(TextFormatter::default()),
+            hooks: Vec::new(),
+            output: Arc::new(Mutex::new(Box::new(io::stdout()))),
+        }
+    }
+    
+    pub fn level(mut self, level: Level) -> Self {
+        self.level = level;
+        self
+    }
+    
+    pub fn formatter<F: Formatter + 'static>(mut self, formatter: F) -> Self {
+        self.formatter = Box::new(formatter);
+        self
+    }
+    
+    pub fn add_hook<H: Hook + 'static>(mut self, hook: H) -> Self {
+        self.hooks.push(Box::new(hook));
+        self
+    }
+    
+    pub fn output<W: Write + Send + 'static>(mut self, output: W) -> Self {
+        self.output = Arc::new(Mutex::new(Box::new(output)));
+        self
+    }
+    
+    pub fn build(self) -> Arc<Self> {
+        Arc::new(self)
+    }
+    
+    pub fn log(&self, level: Level, msg: &str, fields: Fields) -> Result<(), Box<dyn std::error::Error>> {
+        if level < self.level {
+            return Ok(());
+        }
+        
+        let entry = Entry {
+            timestamp: Utc::now(),
+            level,
+            message: msg.to_string(),
+            fields,
+            logger: self,
+        };
+        
+        // Fire hooks
+        for hook in &self.hooks {
+            if hook.levels().contains(&level) {
+                hook.fire(&entry)?;
+            }
+        }
+        
+        // Format and write entry
+        let formatted = self.formatter.format(&entry)?;
+        self.output.lock().unwrap().write_all(&formatted)?;
+        
+        // Handle fatal and panic levels
+        match level {
+            Level::Fatal => std::process::exit(1),
+            Level::Panic => std::panic::panic_any(msg.to_string()),
+            _ => Ok(()),
+        }
+    }
+    
+    pub fn with_fields(&self, fields: Fields) -> EntryBuilder {
+        EntryBuilder {
+            logger: self,
+            fields,
+        }
     }
 }
 
-// Global logger setup
-lazy_static::lazy_static! {
-    static ref GLOBAL_LOGGER: Mutex<Logger> = Mutex::new(Logger::new());
+/// Builder for log entries
+pub struct EntryBuilder<'a> {
+    logger: &'a Logger,
+    fields: Fields,
+}
+
+impl<'a> Clone for EntryBuilder<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            logger: self.logger,
+            fields: self.fields.clone(),
+        }
+    }
+}
+
+impl<'a> EntryBuilder<'a> {
+    pub fn with_field<K, V>(mut self, key: K, value: V) -> Self
+    where
+        K: Into<String>,
+        V: Serialize,
+    {
+        self.fields.insert(
+            key.into(),
+            serde_json::to_value(value).unwrap_or(Value::Null),
+        );
+        self
+    }
+    
+    pub fn trace<M: Into<String>>(&self, msg: M) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.log(Level::Trace, &msg.into(), self.fields.clone())
+    }
+    
+    pub fn debug<M: Into<String>>(&self, msg: M) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.log(Level::Debug, &msg.into(), self.fields.clone())
+    }
+    
+    pub fn info<M: Into<String>>(&self, msg: M) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.log(Level::Info, &msg.into(), self.fields.clone())
+    }
+    
+    pub fn warn<M: Into<String>>(&self, msg: M) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.log(Level::Warn, &msg.into(), self.fields.clone())
+    }
+    
+    pub fn error<M: Into<String>>(&self, msg: M) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.log(Level::Error, &msg.into(), self.fields.clone())
+    }
+    
+    pub fn fatal<M: Into<String>>(&self, msg: M) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.log(Level::Fatal, &msg.into(), self.fields.clone())
+    }
+    
+    pub fn panic<M: Into<String>>(&self, msg: M) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.log(Level::Panic, &msg.into(), self.fields.clone())
+    }
+}
+
+// Global logger
+lazy_static! {
+    static ref GLOBAL_LOGGER: Arc<Logger> = Logger::new().build();
 }
 
 // Global functions
 pub fn set_level(level: Level) {
-    GLOBAL_LOGGER.lock().unwrap().level = level;
+    let logger = GLOBAL_LOGGER.clone();
+    if let Some(mut logger) = Arc::get_mut(&mut logger.clone()) {
+        logger.level = level;
+    }
 }
 
-pub fn add_hook<H: Hook + 'static>(hook: H) {
-    GLOBAL_LOGGER.lock().unwrap().add_hook(hook);
+pub fn with_fields<'a>(fields: Fields) -> EntryBuilder<'a> {
+    GLOBAL_LOGGER.with_fields(fields)
 }
 
-pub fn set_formatter<F: Formatter + 'static>(formatter: F) {
-    GLOBAL_LOGGER.lock().unwrap().formatter = Arc::new(formatter);
+// Macros for convenient logging
+#[macro_export]
+macro_rules! with_fields {
+    ($($key:expr => $value:expr),* $(,)?) => {{
+        let mut fields = ::std::collections::HashMap::new();
+        $(
+            fields.insert($key.to_string(), $crate::serde_json::to_value($value).unwrap_or($crate::serde_json::Value::Null));
+        )*
+        $crate::with_fields(fields)
+    }};
 }
 
-pub fn with_field<T: Serialize>(key: &str, value: T) -> Entry {
-    let logger = GLOBAL_LOGGER.lock().unwrap();
-    logger.entry().with_field(key, value)
+#[macro_export]
+macro_rules! trace {
+    ($msg:expr) => {
+        $crate::with_fields!().trace($msg)
+    };
 }
 
-pub fn with_fields(fields: Fields) -> Entry {
-    let logger = GLOBAL_LOGGER.lock().unwrap();
-    logger.entry().with_fields(fields)
+#[macro_export]
+macro_rules! debug {
+    ($msg:expr) => {
+        $crate::with_fields!().debug($msg)
+    };
 }
 
-pub fn trace(msg: &str) -> Result<(), Box<dyn Error>> {
-    GLOBAL_LOGGER.lock().unwrap().trace(msg)
+#[macro_export]
+macro_rules! info {
+    ($msg:expr) => {
+        $crate::with_fields!().info($msg)
+    };
 }
 
-pub fn debug(msg: &str) -> Result<(), Box<dyn Error>> {
-    GLOBAL_LOGGER.lock().unwrap().debug(msg)
+#[macro_export]
+macro_rules! warn {
+    ($msg:expr) => {
+        $crate::with_fields!().warn($msg)
+    };
 }
 
-pub fn info(msg: &str) -> Result<(), Box<dyn Error>> {
-    GLOBAL_LOGGER.lock().unwrap().info(msg)
+#[macro_export]
+macro_rules! error {
+    ($msg:expr) => {
+        $crate::with_fields!().error($msg)
+    };
 }
 
-pub fn warn(msg: &str) -> Result<(), Box<dyn Error>> {
-    GLOBAL_LOGGER.lock().unwrap().warn(msg)
+#[macro_export]
+macro_rules! fatal {
+    ($msg:expr) => {
+        $crate::with_fields!().fatal($msg)
+    };
 }
 
-pub fn error(msg: &str) -> Result<(), Box<dyn Error>> {
-    GLOBAL_LOGGER.lock().unwrap().error(msg)
+#[macro_export]
+macro_rules! panic {
+    ($msg:expr) => {
+        $crate::with_fields!().panic($msg)
+    };
 }
 
-pub fn fatal(msg: &str) -> ! {
-    GLOBAL_LOGGER.lock().unwrap().fatal(msg)
-}
-
-pub fn panic(msg: &str) -> ! {
-    GLOBAL_LOGGER.lock().unwrap().panic(msg)
-}
-
+// Testing module
 #[cfg(test)]
-mod tests {
+pub mod test {
     use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn test_log_levels() {
-        let logger = Logger::new().with_level(Level::Debug);
-        logger.debug("Debug message").unwrap();
-        logger.info("Info message").unwrap();
+    use std::sync::Mutex;
+    
+    #[derive(Default)]
+    pub struct TestWriter {
+        pub buffer: Mutex<Vec<u8>>,
     }
-
-    #[test]
-    fn test_fields() {
-        let logger = Logger::new();
-        logger.entry()
-            .with_field("key1", "value1")
-            .with_field("key2", 42)
-            .with_field("key3", true)
-            .log()
-            .unwrap();
+    
+    impl Write for TestWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.buffer.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
     }
-
+    
+    impl Clone for TestWriter {
+        fn clone(&self) -> Self {
+            Self {
+                buffer: Mutex::new(self.buffer.lock().unwrap().clone()),
+            }
+        }
+    }
+    
+    pub struct TestLogger {
+        pub logger: Arc<Logger>,
+        pub writer: TestWriter,
+    }
+    
+    impl TestLogger {
+        pub fn new() -> (Arc<Logger>, TestWriter) {
+            let writer = TestWriter::default();
+            let logger = Logger::new()
+                .output(Box::new(writer.clone()))
+                .build();
+            (logger, writer)
+        }
+    }
+    
+    #[test]
+    fn test_basic_logging() {
+        let (logger, writer) = TestLogger::new();
+        logger.log(Level::Info, "test message", Fields::new()).unwrap();
+        
+        let output = String::from_utf8(writer.buffer.lock().unwrap().clone()).unwrap();
+        assert!(output.contains("test message"));
+        assert!(output.contains("INFO"));
+    }
+    
     #[test]
     fn test_json_formatter() {
-        let mut logger = Logger::new();
-        let buffer = Arc::new(Mutex::new(Vec::new()));
-        let buffer_clone = Arc::clone(&buffer);
+        let writer = TestWriter::default();
+        let logger = Logger::new()
+            .formatter(JSONFormatter::default())
+            .output(Box::new(writer.clone()))
+            .build();
+            
+        logger.log(Level::Info, "test message", Fields::new()).unwrap();
         
-        struct VecWriter(Arc<Mutex<Vec<u8>>>);
-        impl Write for VecWriter {
-            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-                self.0.lock().unwrap().extend_from_slice(buf);
-                Ok(buf.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
+        let output = String::from_utf8(writer.buffer.lock().unwrap().clone()).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
         
-        logger.set_output(VecWriter(buffer_clone));
-        logger = logger.with_formatter(JSONFormatter::default());
-        
-        logger.info("test message").unwrap();
-        
-        let content = String::from_utf8(buffer.lock().unwrap().clone()).unwrap();
-        assert!(content.contains("test message"));
+        assert_eq!(parsed["level"], "info");
+        assert_eq!(parsed["message"], "test message");
     }
-
+    
     #[test]
     fn test_hooks() {
-        struct TestHook;
+        #[derive(Debug)]
+        struct TestHook {
+            called: Arc<Mutex<bool>>,
+        }
+        
         impl Hook for TestHook {
-            fn fire(&self, entry: &Entry) -> Result<(), Box<dyn Error>> {
-                println!("Hook fired for level: {}", entry.level);
+            fn levels(&self) -> Vec<Level> {
+                vec![
+                    Level::Trace,
+                    Level::Debug,
+                    Level::Info,
+                    Level::Warn,
+                    Level::Error,
+                    Level::Fatal,
+                    Level::Panic,
+                ]
+            }
+            
+            fn fire(&self, _: &Entry) -> Result<(), Box<dyn std::error::Error>> {
+                *self.called.lock().unwrap() = true;
                 Ok(())
             }
         }
-
-        let mut logger = Logger::new();
-        logger.add_hook(TestHook);
-        logger.info("Test hook message").unwrap();
+        
+        let called = Arc::new(Mutex::new(false));
+        let hook = TestHook { called: called.clone() };
+        
+        let logger = Logger::new()
+            .add_hook(hook)
+            .build();
+            
+        logger.log(Level::Info, "test message", Fields::new()).unwrap();
+        
+        assert!(*called.lock().unwrap());
     }
 }
