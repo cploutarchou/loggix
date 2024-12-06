@@ -1,6 +1,6 @@
 [package]
 name = "loggix"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "A powerful, structured logging library for Rust inspired by Logrus. Features thread-safe logging, structured fields, custom formatters, and beautiful terminal output."
 authors = ["Christos Ploutarchou <cploutarchou@gmail.com>"]

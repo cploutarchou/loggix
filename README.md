@@ -24,7 +24,7 @@ A powerful structured logger for Rust, inspired by [Logrus](https://github.com/s
 Add to your `Cargo.toml`:
 ```toml
 [dependencies]
-loggix = "1.0.0"
+loggix = "1.0.1"
 ```
 
 ### Basic Logging

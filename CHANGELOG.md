@@ -2,10 +2,10 @@
 
 All notable changes to Loggix will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.1/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2024-12-06
+## [1.0.1] - 2024-12-06
 
 ### Added
 - Seven log levels: Trace, Debug, Info, Warning, Error, Fatal, and Panic
@@ -27,4 +27,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Initial stable release, establishing public API
 
-[1.0.0]: https://github.com/cploutarchou/loggix/releases/tag/v1.0.0
+[1.0.1]: https://github.com/cploutarchou/loggix/releases/tag/v1.0.1

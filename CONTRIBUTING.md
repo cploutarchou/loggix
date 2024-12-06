@@ -50,7 +50,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ### Rust Style Guide
 
-* Follow the official [Rust Style Guide](https://doc.rust-lang.org/1.0.0/style/README.html)
+* Follow the official [Rust Style Guide](https://doc.rust-lang.org/1.0.1/style/README.html)
 * Use `cargo fmt` to format your code
 * Use `cargo clippy` to catch common mistakes
 * Write documentation for public APIs
