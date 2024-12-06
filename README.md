@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/loggix.svg)](https://crates.io/crates/loggix)
 [![Documentation](https://docs.rs/loggix/badge.svg)](https://docs.rs/loggix)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/d/loggix.svg)](https://crates.io/crates/loggix)
 
 A powerful structured logger for Rust, inspired by [Logrus](https://github.com/sirupsen/logrus). Loggix combines structured logging with Rust's safety and performance guarantees.
@@ -24,7 +24,7 @@ A powerful structured logger for Rust, inspired by [Logrus](https://github.com/s
 Add to your `Cargo.toml`:
 ```toml
 [dependencies]
-loggix = "1.0.1"
+loggix = "1.0.2"
 ```
 
 ### Basic Logging
@@ -216,6 +216,82 @@ Loggix is designed to be thread-safe by default. All logging operations are atom
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## Roadmap
+
+Here are the planned features and enhancements for Loggix:
+
+### Data Store Integration
+- 🗄️ Database Support
+  - PostgreSQL integration for persistent logging
+  - MongoDB support for document-based logging
+  - ClickHouse for high-performance analytics
+  - TimescaleDB for time-series data
+
+### Message Queue & Streaming
+- 🚀 Apache Kafka Integration
+  - Real-time log streaming
+  - Multi-topic support
+  - Partitioning strategies
+- 🌊 Redis Streams Support
+- 🔄 RabbitMQ Integration
+
+### Search & Analytics
+- 🔍 Elasticsearch Integration
+  - Full-text search capabilities
+  - Log aggregation and analysis
+  - Custom mapping templates
+- 📊 OpenSearch Support
+
+### Advanced Features
+- 💹 Trading Systems Support
+  - High-frequency trading logs
+  - Order execution tracking
+  - Market data logging
+- 🔐 Enhanced Security
+  - Log encryption at rest
+  - Audit trail capabilities
+  - GDPR compliance features
+- 🌐 Distributed Systems
+  - Distributed tracing integration
+  - OpenTelemetry support
+  - Correlation ID tracking
+
+### Performance & Scaling
+- 🚄 High-Performance Mode
+  - Zero-copy logging
+  - Lock-free implementation
+  - Memory-mapped files
+- 🎯 Load Balancing
+  - Dynamic log routing
+  - Automatic failover
+  - Horizontal scaling
+
+### Monitoring & Alerting
+- 📡 Real-time Monitoring
+  - Custom metrics export
+  - Prometheus integration
+  - Health check endpoints
+- ⚡ Alert System
+  - Configurable thresholds
+  - Multiple notification channels
+  - Alert aggregation
+
+### Additional Features
+- 🔄 Log Rotation
+  - Size-based rotation
+  - Time-based rotation
+  - Compression support
+- 🎨 Advanced Formatting
+  - Custom template engine
+  - Multiple output formats
+  - Dynamic field masking
+- 🧪 Testing Tools
+  - Mock logger implementation
+  - Assertion helpers
+  - Performance benchmarks
+
+These features are in various stages of planning and development. Contributions and feedback are welcome!
 
 ## License
 
