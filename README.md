@@ -1,5 +1,10 @@
 # Loggix 🦀
 
+[![Crates.io](https://img.shields.io/crates/v/loggix.svg)](https://crates.io/crates/loggix)
+[![Documentation](https://docs.rs/loggix/badge.svg)](https://docs.rs/loggix)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Crates.io](https://img.shields.io/crates/d/loggix.svg)](https://crates.io/crates/loggix)
+
 A powerful structured logger for Rust, inspired by [Logrus](https://github.com/sirupsen/logrus). Loggix combines structured logging with Rust's safety and performance guarantees.
 
 ## Features
