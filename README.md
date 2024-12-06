@@ -2,8 +2,6 @@
 
 A powerful structured logger for Rust, inspired by [Logrus](https://github.com/sirupsen/logrus). Loggix combines structured logging with Rust's safety and performance guarantees.
 
-![Example Output](https://raw.githubusercontent.com/cploutarchou/loggix/main/examples/output.png)
-
 ## Features
 
 - 🎯 Seven log levels: Trace, Debug, Info, Warning, Error, Fatal, and Panic
@@ -24,177 +22,159 @@ Add to your `Cargo.toml`:
 loggix = "0.1.0"
 ```
 
-Basic usage:
+### Basic Logging
+
 ```rust
-use loggix::{info, debug, warn, error, with_fields};
+use loggix::{info, debug, warn, error};
 
 fn main() {
-    // Simple logging
-    info!("A walrus appears");
-    
-    // Structured logging with fields
-    with_fields!({
-        "animal" => "walrus",
-        "size" => 10
-    })
-    .info("A group of walrus emerges from the ocean");
-    
-    // Warning with more fields
-    with_fields!({
-        "omg" => true,
-        "number" => 122
-    })
-    .warn("The group's number increased tremendously!");
-    
-    // Fatal will exit the program
-    with_fields!({
-        "omg" => true,
-        "number" => 100
-    })
-    .fatal("The ice breaks!");
+    debug!("Debug message");
+    info!("Info message");
+    warn!("Warning message");
+    error!("Error message");
 }
 ```
 
-Output with default text formatter (with colors when TTY is attached):
-```
-[2023-08-10T15:04:05Z INFO] A walrus appears
-[2023-08-10T15:04:05Z INFO] A group of walrus emerges from the ocean animal=walrus size=10
-[2023-08-10T15:04:05Z WARN] The group's number increased tremendously! omg=true number=122
-[2023-08-10T15:04:05Z FATAL] The ice breaks! omg=true number=100
+### Structured Logging
+
+```rust
+use loggix::with_fields;
+
+fn main() {
+    // Log with structured fields
+    with_fields!(
+        "user_id" => "12345",
+        "action" => "login",
+        "ip" => "192.168.1.1"
+    )
+    .info("User login successful")
+    .unwrap();
+}
 ```
 
-With JSON formatter:
+### JSON Output
+
 ```rust
-use loggix::{Logger, JSONFormatter};
+use loggix::{Logger, JSONFormatter, with_fields};
 
 fn main() {
     let logger = Logger::new()
-        .formatter(JSONFormatter::default())
+        .formatter(JSONFormatter::new().pretty(true))
         .build();
-        
-    logger.with_fields({
-        "animal" => "walrus",
-        "size" => 10
-    })
-    .info("A group of walrus emerges from the ocean");
+
+    with_fields!(
+        "transaction_id" => "tx-9876",
+        "amount" => 150.50,
+        "currency" => "USD"
+    )
+    .info("Payment processed")
+    .unwrap();
 }
 ```
 
 Output:
 ```json
-{"timestamp":"2023-08-10T15:04:05Z","level":"info","msg":"A group of walrus emerges from the ocean","animal":"walrus","size":10}
-```
-
-## Advanced Usage
-
-### Custom Logger Instance
-
-```rust
-use loggix::{Logger, Level, TextFormatter};
-use std::fs::File;
-
-fn main() {
-    // Create a new logger instance with custom configuration
-    let logger = Logger::new()
-        .level(Level::Debug)
-        .formatter(TextFormatter::new()
-            .timestamp_format("%Y-%m-%d %H:%M:%S")
-            .colors(true)
-            .full_timestamp(true)
-            .build())
-        .build();
-
-    // Use the custom logger
-    logger.with_fields(Fields::new())
-        .with_field("component", "auth")
-        .info("Authentication successful");
+{
+  "timestamp": "2024-12-06T20:30:21.103Z",
+  "level": "info",
+  "message": "Payment processed",
+  "transaction_id": "tx-9876",
+  "amount": 150.50,
+  "currency": "USD"
 }
 ```
 
 ### Error Handling
 
-Loggix provides convenient error handling through the `with_error` function:
-
 ```rust
-use std::fs::File;
 use loggix::with_error;
+use std::fs::File;
 
 fn main() {
     let result = File::open("non_existent.txt");
     if let Err(error) = result {
-        with_error(&error).error("Failed to open file");
+        with_error(&error)
+            .error("Failed to open file")
+            .unwrap();
     }
 }
 ```
 
-### Custom Time Fields
-
-You can attach custom timestamps to your log entries:
+### Custom Logger Instance
 
 ```rust
-use loggix::with_time;
-use chrono::Utc;
-
-fn main() {
-    let event_time = Utc::now();
-    with_time(event_time).info("Event occurred at specific time");
-}
-```
-
-### Multiple Fields at Once
-
-For logging multiple fields efficiently:
-
-```rust
-use loggix::{Logger, Fields};
-
-fn main() {
-    let fields = vec![
-        ("user", "john"),
-        ("action", "login"),
-        ("ip", "192.168.1.1"),
-    ];
-
-    Logger::new()
-        .build()
-        .with_fields(Fields::new())
-        .with_fields_map(fields)
-        .info("User login activity");
-}
-```
-
-### Level String Parsing
-
-Parse log levels from strings:
-
-```rust
-use loggix::Level;
-
-fn main() {
-    if let Some(level) = Level::from_str("INFO") {
-        println!("Parsed level: {}", level);
-    }
-}
-```
-
-### JSON Formatting
-
-For machine-readable logs:
-
-```rust
-use loggix::{Logger, JSONFormatter};
+use loggix::{Logger, Level, TextFormatter};
 
 fn main() {
     let logger = Logger::new()
-        .formatter(JSONFormatter::new().pretty(true).build())
+        .level(Level::Debug)
+        .formatter(TextFormatter::new()
+            .timestamp_format("%Y-%m-%d %H:%M:%S")
+            .colors(true)
+            .build())
         .build();
 
-    logger.with_fields(Fields::new())
-        .with_field("user", "john")
-        .with_field("action", "login")
-        .info("User logged in");
+    logger.with_fields(Default::default())
+        .with_field("component", "auth")
+        .info("Authentication successful")
+        .unwrap();
 }
 ```
+
+## Advanced Usage
+
+### Custom Formatters
+
+Implement the `Formatter` trait to create your own log format:
+
+```rust
+use loggix::{Formatter, Entry};
+use std::error::Error;
+
+struct MyFormatter;
+
+impl Formatter for MyFormatter {
+    fn format(&self, entry: &Entry) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut output = Vec::new();
+        // Format the log entry however you want
+        write!(&mut output, "MY-LOG: {} - {}", entry.level, entry.message)?;
+        Ok(output)
+    }
+}
+```
+
+### Custom Hooks
+
+Implement the `Hook` trait to process log entries:
+
+```rust
+use loggix::{Hook, Entry, Level};
+
+struct MetricsHook;
+
+impl Hook for MetricsHook {
+    fn fire(&self, entry: &Entry) -> Result<(), Box<dyn Error>> {
+        // Send metrics to your metrics system
+        if entry.level == Level::Error {
+            // Record error metrics
+        }
+        Ok(())
+    }
+    
+    fn levels(&self) -> Vec<Level> {
+        vec![Level::Error, Level::Fatal]
+    }
+}
+```
+
+## Examples
+
+Check out the [examples](examples) directory for more detailed examples:
+
+- [Basic Logging](examples/basic_logging.rs)
+- [Structured Logging](examples/structured_logging.rs)
+- [JSON Logging](examples/json_logging.rs)
+- [Error Handling](examples/error_handling.rs)
 
 ## Performance
 
@@ -234,9 +214,4 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Inspired by [Logrus](https://github.com/sirupsen/logrus)
-- Built with ❤️ using Rust
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
