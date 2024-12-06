@@ -2,12 +2,14 @@
 name = "loggix"
 version = "0.1.0"
 edition = "2021"
-description = "A powerful, structured logging library for Rust inspired by Logrus"
+description = "A powerful, structured logging library for Rust inspired by Logrus. Features thread-safe logging, structured fields, custom formatters, and beautiful terminal output."
 authors = ["Christos Ploutarchou <cploutarchou@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/cploutarchou/loggix"
+documentation = "https://docs.rs/loggix"
+readme = "README.md"
 keywords = ["logging", "structured", "log", "json", "logrus"]
-categories = ["development-tools::debugging"]
+categories = ["development-tools::debugging", "development-tools::profiling"]
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
@@ -15,3 +17,10 @@ colored = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lazy_static = "1.4.0"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "logging"
+harness = false

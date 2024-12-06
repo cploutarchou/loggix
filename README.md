@@ -94,86 +94,149 @@ use loggix::{Logger, Level, TextFormatter};
 use std::fs::File;
 
 fn main() {
-    // Create a new logger instance
+    // Create a new logger instance with custom configuration
     let logger = Logger::new()
         .level(Level::Debug)
         .formatter(TextFormatter::new()
             .timestamp_format("%Y-%m-%d %H:%M:%S")
-            .colors(false)
+            .colors(true)
+            .full_timestamp(true)
             .build())
-        .output(File::create("app.log").unwrap())
         .build();
-    
-    // Use the logger
-    logger.debug("Debug message");
-    logger.info("Info message");
-    
-    // Create a context logger
-    let context_logger = logger.with_fields({
-        "request_id" => "123",
-        "user_id" => "456"
-    });
-    
-    context_logger.info("Request processed");
-    context_logger.warn("Slow response detected");
+
+    // Use the custom logger
+    logger.with_fields(Fields::new())
+        .with_field("component", "auth")
+        .info("Authentication successful");
 }
 ```
 
-### Hooks
+### Error Handling
+
+Loggix provides convenient error handling through the `with_error` function:
 
 ```rust
-use loggix::{Logger, Hook, Entry, Level};
+use std::fs::File;
+use loggix::with_error;
 
-struct MetricsHook;
-
-impl Hook for MetricsHook {
-    fn fire(&self, entry: &Entry) -> Result<(), Box<dyn std::error::Error>> {
-        // Send metrics to your metrics system
-        println!("Metrics: {} - {}", entry.level, entry.message);
-        Ok(())
-    }
-    
-    fn levels(&self) -> Vec<Level> {
-        vec![Level::Error, Level::Fatal, Level::Panic]
+fn main() {
+    let result = File::open("non_existent.txt");
+    if let Err(error) = result {
+        with_error(&error).error("Failed to open file");
     }
 }
+```
+
+### Custom Time Fields
+
+You can attach custom timestamps to your log entries:
+
+```rust
+use loggix::with_time;
+use chrono::Utc;
+
+fn main() {
+    let event_time = Utc::now();
+    with_time(event_time).info("Event occurred at specific time");
+}
+```
+
+### Multiple Fields at Once
+
+For logging multiple fields efficiently:
+
+```rust
+use loggix::{Logger, Fields};
+
+fn main() {
+    let fields = vec![
+        ("user", "john"),
+        ("action", "login"),
+        ("ip", "192.168.1.1"),
+    ];
+
+    Logger::new()
+        .build()
+        .with_fields(Fields::new())
+        .with_fields_map(fields)
+        .info("User login activity");
+}
+```
+
+### Level String Parsing
+
+Parse log levels from strings:
+
+```rust
+use loggix::Level;
+
+fn main() {
+    if let Some(level) = Level::from_str("INFO") {
+        println!("Parsed level: {}", level);
+    }
+}
+```
+
+### JSON Formatting
+
+For machine-readable logs:
+
+```rust
+use loggix::{Logger, JSONFormatter};
 
 fn main() {
     let logger = Logger::new()
-        .add_hook(MetricsHook)
+        .formatter(JSONFormatter::new().pretty(true).build())
         .build();
-        
-    logger.error("This will trigger the metrics hook");
+
+    logger.with_fields(Fields::new())
+        .with_field("user", "john")
+        .with_field("action", "login")
+        .info("User logged in");
 }
 ```
+
+## Performance
+
+Loggix is designed for high performance while maintaining flexibility. Here are some key performance characteristics:
+
+### Benchmark Results
+
+```
+Basic logging:           813.57 ns/iter
+Structured logging:      1.34 µs/iter   (with 2 fields)
+Multiple fields:         2.23 µs/iter   (with 4 fields)
+```
+
+Key performance features:
+- Zero-allocation logging paths for common use cases
+- Efficient field storage using pre-allocated hashmaps
+- Lock-free architecture where possible
+- Linear scaling with number of fields
+- Thread-safe by default with minimal overhead
+
+### Running Benchmarks
+
+Run the benchmarks yourself with:
+```bash
+cargo bench
+```
+
+The benchmarks use [Criterion.rs](https://github.com/bheisler/criterion.rs) for statistical analysis and reliable measurements.
 
 ## Thread Safety
 
-Loggix is thread-safe by default, protected by a mutex for concurrent writes. The mutex is held when calling hooks and writing logs.
-
-## Testing
-
-Loggix provides testing utilities to assert log messages:
-
-```rust
-use loggix::test::{TestLogger, capture_logs};
-
-#[test]
-fn test_logging() {
-    let (logger, logs) = TestLogger::new();
-    
-    logger.info("Test message");
-    
-    assert_eq!(logs.len(), 1);
-    assert_eq!(logs[0].level, Level::Info);
-    assert_eq!(logs[0].message, "Test message");
-}
-```
+Loggix is designed to be thread-safe by default. All logging operations are atomic and can be safely used across multiple threads. The library uses `Arc` and `Mutex` internally to protect shared state.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
 
-MIT License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Inspired by [Logrus](https://github.com/sirupsen/logrus)
+- Built with ❤️ using Rust
