@@ -1,6 +1,6 @@
 [package]
 name = "loggix"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 description = "A powerful, structured logging library for Rust inspired by Logrus. Features thread-safe logging, structured fields, custom formatters, and beautiful terminal output."
 authors = ["Christos Ploutarchou <cploutarchou@gmail.com>"]
@@ -9,18 +9,34 @@ repository = "https://github.com/cploutarchou/loggix"
 documentation = "https://docs.rs/loggix"
 readme = "README.md"
 keywords = ["logging", "structured", "log", "json", "logrus"]
-categories = ["development-tools::debugging", "development-tools::profiling"]
+categories = [
+    "development-tools::debugging",
+    "development-tools::profiling",
+    "asynchronous",
+    "database",
+    "development-tools"
+]
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-colored = "2.0"
+colored = "3.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"
 lazy_static = "1.4.0"
+rdkafka = { version = "0.37.0", features = ["cmake-build"] }
+tokio = { version = "1.0", features = ["full", "macros"] }
 
 [dev-dependencies]
 criterion = "0.5"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1.0", features = ["full"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+[features]
+integration-tests = []
 
 [[bench]]
-name = "logging"
+name = "logging_benchmark"
 harness = false

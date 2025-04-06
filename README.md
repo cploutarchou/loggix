@@ -1,298 +1,230 @@
-# Loggix 🦀
+# Loggix
 
-[![Crates.io](https://img.shields.io/crates/v/loggix.svg)](https://crates.io/crates/loggix)
-[![Documentation](https://docs.rs/loggix/badge.svg)](https://docs.rs/loggix)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/d/loggix.svg)](https://crates.io/crates/loggix)
-
-A powerful structured logger for Rust, inspired by [Logrus](https://github.com/sirupsen/logrus). Loggix combines structured logging with Rust's safety and performance guarantees.
+A high-performance, async-first logging framework for Rust with Kafka integration.
 
 ## Features
 
-- 🎯 Seven log levels: Trace, Debug, Info, Warning, Error, Fatal, and Panic
-- 🔍 Structured logging with fields
-- 🎨 Beautiful terminal output with colors (when TTY is attached)
-- 📊 JSON formatter for machine processing
-- 🪝 Extensible hook system
-- 🔒 Thread-safe by default
-- 🌍 Global and local logger instances
-- 📝 Customizable formatters
-- 🎮 Full control over output (any type implementing `std::io::Write`)
+- Flexible logging levels (TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC)
+- Structured logging with key-value pairs
+- Customizable formatters (text and JSON included)
+- Asynchronous logging support
+  - `log_async` method for async contexts
+  - Non-blocking operations
+  - Tokio runtime integration
+- Hook system for log processing and forwarding
+  - Sync and async hook support
+  - Multiple hooks per logger
+  - Level-based filtering
+- Kafka integration with support for:
+  - Asynchronous message delivery
+  - Custom message keys via fields
+  - Topic configuration
+  - Error handling and retries
+  - Automatic topic creation
+  - Message key routing
+- Thread-safe logging
+- Zero-allocation logging paths
+- Configurable output destinations
+- Colorized console output (optional)
+- Comprehensive benchmarks
+- Full test coverage
 
-## Quick Start
+## Installation
 
-Add to your `Cargo.toml`:
+Add this to your `Cargo.toml`:
+
 ```toml
 [dependencies]
-loggix = "1.0.2"
+loggix = "1.0"
 ```
+
+## Quick Start
 
 ### Basic Logging
 
 ```rust
-use loggix::{info, debug, warn, error};
+use loggix::{Logger, Level, Fields};
 
-fn main() {
-    debug!("Debug message");
-    info!("Info message");
-    warn!("Warning message");
-    error!("Error message");
-}
+// Create a logger
+let logger = Logger::new().build();
+
+// Log a message
+let mut fields = Fields::new();
+fields.insert("user_id".to_string(), "123".into());
+logger.log(Level::Info, "User logged in", fields).unwrap();
+
+// Async logging
+let mut fields = Fields::new();
+fields.insert("order_id".to_string(), "456".into());
+logger.log_async(Level::Info, "Order processed", fields).await.unwrap();
 ```
 
-### Structured Logging
+### Structured Logging with JSON
 
 ```rust
-use loggix::with_fields;
+use loggix::{Logger, JSONFormatter, Level, Fields};
+use serde_json::Value;
 
-fn main() {
-    // Log with structured fields
-    with_fields!(
-        "user_id" => "12345",
-        "action" => "login",
-        "ip" => "192.168.1.1"
-    )
-    .info("User login successful")
-    .unwrap();
-}
+let logger = Logger::new()
+    .formatter(JSONFormatter::new())
+    .build();
+
+let mut fields = Fields::new();
+fields.insert("transaction_id".to_string(), Value::String("tx-123".to_string()));
+fields.insert("amount".to_string(), Value::Number(100.into()));
+logger.log(Level::Info, "Payment processed", fields).unwrap();
 ```
 
-### JSON Output
+## Kafka Integration
+
+### Setting up Kafka
+
+1. Start the Kafka environment:
+```bash
+docker-compose up -d
+```
+
+2. Create a logger with Kafka hook:
+```rust
+use loggix::{Logger, KafkaHook, Level, Fields};
+use serde_json::Value;
+
+// Create a Kafka hook with message key support
+let kafka_hook = KafkaHook::new("localhost:9092", "logs")
+    .unwrap()
+    .with_key_field("correlation_id".to_string());
+
+// Create a logger with the Kafka hook
+let logger = Logger::new()
+    .add_hook(kafka_hook)
+    .build();
+
+// Log a message with a correlation ID for message routing
+let mut fields = Fields::new();
+fields.insert("correlation_id".to_string(), Value::String("abc-123".to_string()));
+fields.insert("user_id".to_string(), Value::String("456".to_string()));
+logger.log_async(Level::Info, "User action", fields).await.unwrap();
+```
+
+### Message Key Support
+
+The Kafka hook supports setting a field as the message key:
 
 ```rust
-use loggix::{Logger, JSONFormatter, with_fields};
+// Set up hook with a key field
+let kafka_hook = KafkaHook::new("localhost:9092", "logs")
+    .unwrap()
+    .with_key_field("tenant_id".to_string());
 
-fn main() {
-    let logger = Logger::new()
-        .formatter(JSONFormatter::new().pretty(true))
-        .build();
-
-    with_fields!(
-        "transaction_id" => "tx-9876",
-        "amount" => 150.50,
-        "currency" => "USD"
-    )
-    .info("Payment processed")
-    .unwrap();
-}
+// Any log message with the tenant_id field will use it as the Kafka message key
+let mut fields = Fields::new();
+fields.insert("tenant_id".to_string(), Value::String("tenant-1".to_string()));
+logger.log_async(Level::Info, "Tenant action", fields).await.unwrap();
 ```
 
-Output:
-```json
-{
-  "timestamp": "2024-12-06T20:30:21.103Z",
-  "level": "info",
-  "message": "Payment processed",
-  "transaction_id": "tx-9876",
-  "amount": 150.50,
-  "currency": "USD"
-}
-```
+This enables:
+- Message routing based on keys
+- Message partitioning
+- Message deduplication
+- Message ordering within partitions
 
-### Error Handling
+### Async Support
+
+Both the logger and hooks support async operations:
 
 ```rust
-use loggix::with_error;
-use std::fs::File;
+// Async logging with hooks
+logger.log_async(Level::Info, "Async message", fields).await?;
 
-fn main() {
-    let result = File::open("non_existent.txt");
-    if let Err(error) = result {
-        with_error(&error)
-            .error("Failed to open file")
-            .unwrap();
-    }
-}
-```
-
-### Custom Logger Instance
-
-```rust
-use loggix::{Logger, Level, TextFormatter};
-
-fn main() {
-    let logger = Logger::new()
-        .level(Level::Debug)
-        .formatter(TextFormatter::new()
-            .timestamp_format("%Y-%m-%d %H:%M:%S")
-            .colors(true)
-            .build())
-        .build();
-
-    logger.with_fields(Default::default())
-        .with_field("component", "auth")
-        .info("Authentication successful")
-        .unwrap();
-}
-```
-
-## Advanced Usage
-
-### Custom Formatters
-
-Implement the `Formatter` trait to create your own log format:
-
-```rust
-use loggix::{Formatter, Entry};
-use std::error::Error;
-
-struct MyFormatter;
-
-impl Formatter for MyFormatter {
-    fn format(&self, entry: &Entry) -> Result<Vec<u8>, Box<dyn Error>> {
-        let mut output = Vec::new();
-        // Format the log entry however you want
-        write!(&mut output, "MY-LOG: {} - {}", entry.level, entry.message)?;
-        Ok(output)
-    }
-}
-```
-
-### Custom Hooks
-
-Implement the `Hook` trait to process log entries:
-
-```rust
-use loggix::{Hook, Entry, Level};
-
-struct MetricsHook;
-
-impl Hook for MetricsHook {
-    fn fire(&self, entry: &Entry) -> Result<(), Box<dyn Error>> {
-        // Send metrics to your metrics system
-        if entry.level == Level::Error {
-            // Record error metrics
-        }
-        Ok(())
-    }
-    
-    fn levels(&self) -> Vec<Level> {
-        vec![Level::Error, Level::Fatal]
+// Hooks automatically use async operations when available
+impl Hook for MyHook {
+    fn fire_async<'a>(&'a self, entry: &'a Entry) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send + 'a>> {
+        // Async implementation
     }
 }
 ```
 
 ## Examples
 
-Check out the [examples](examples) directory for more detailed examples:
+See the `examples/` directory for more examples:
+- Basic logging
+- Custom formatters
+- Kafka integration
+- Async logging
+- Structured logging
+- Error handling
 
-- [Basic Logging](examples/basic_logging.rs)
-- [Structured Logging](examples/structured_logging.rs)
-- [JSON Logging](examples/json_logging.rs)
-- [Error Handling](examples/error_handling.rs)
+## Benchmarks
 
-## Performance
-
-Loggix is designed for high performance while maintaining flexibility. Here are some key performance characteristics:
-
-### Benchmark Results
-
-```
-Basic logging:           813.57 ns/iter
-Structured logging:      1.34 µs/iter   (with 2 fields)
-Multiple fields:         2.23 µs/iter   (with 4 fields)
-```
-
-Key performance features:
-- Zero-allocation logging paths for common use cases
-- Efficient field storage using pre-allocated hashmaps
-- Lock-free architecture where possible
-- Linear scaling with number of fields
-- Thread-safe by default with minimal overhead
-
-### Running Benchmarks
-
-Run the benchmarks yourself with:
+Run the benchmarks:
 ```bash
 cargo bench
 ```
 
-The benchmarks use [Criterion.rs](https://github.com/bheisler/criterion.rs) for statistical analysis and reliable measurements.
+Example benchmark results:
+- Sync logging: ~1800ns/iter
+- Async logging: ~2000ns/iter
+- Kafka logging: ~10000ns/iter (network latency not included)
 
-## Thread Safety
+## Configuration
 
-Loggix is designed to be thread-safe by default. All logging operations are atomic and can be safely used across multiple threads. The library uses `Arc` and `Mutex` internally to protect shared state.
+### YAML Configuration
 
-## Contributing
+Create a `config.yaml` file:
+```yaml
+kafka:
+  bootstrap_servers: "localhost:9092"
+  group_id: "logger_group"
+  auto_offset_reset: "earliest"
+  socket_timeout_ms: 3000
+  session_timeout_ms: 6000
+  replication_factor: 1
+  partitions: 1
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+## Performance Tips
+
+1. Use `log_async` in async contexts
+2. Reuse field collections when possible
+3. Consider message key strategy for Kafka partitioning
+4. Use appropriate log levels to minimize processing
+5. Configure appropriate batch sizes for Kafka
 
 ## Roadmap
 
-Here are the planned features and enhancements for Loggix:
+- [ ] ElasticSearch integration
+- [ ] Log rotation
+- [ ] Log compression
+- [ ] Sampling and filtering
+- [ ] OpenTelemetry integration
+- [ ] Prometheus metrics
+- [ ] Log aggregation
+- [ ] Log analytics
 
-### Data Store Integration
-- 🗄️ Database Support
-  - PostgreSQL integration for persistent logging
-  - MongoDB support for document-based logging
-  - ClickHouse for high-performance analytics
-  - TimescaleDB for time-series data
+## Changelog
 
-### Message Queue & Streaming
-- 🚀 Apache Kafka Integration
-  - Real-time log streaming
-  - Multi-topic support
-  - Partitioning strategies
-- 🌊 Redis Streams Support
-- 🔄 RabbitMQ Integration
+### v1.0.2 (2025-04-06)
+- Added support for Kafka message keys
+- Added asynchronous logging with `log_async`
+- Fixed race conditions in Kafka topic creation
+- Improved error handling in Kafka integration
+- Added benchmarks for sync and async logging
+- Added more examples and documentation
 
-### Search & Analytics
-- 🔍 Elasticsearch Integration
-  - Full-text search capabilities
-  - Log aggregation and analysis
-  - Custom mapping templates
-- 📊 OpenSearch Support
+### v1.0.1 (2025-04-05)
+- Added Kafka integration
+- Added hook system for log processing
+- Added JSON formatter
+- Added structured logging with fields
+- Added colorized console output
 
-### Advanced Features
-- 💹 Trading Systems Support
-  - High-frequency trading logs
-  - Order execution tracking
-  - Market data logging
-- 🔐 Enhanced Security
-  - Log encryption at rest
-  - Audit trail capabilities
-  - GDPR compliance features
-- 🌐 Distributed Systems
-  - Distributed tracing integration
-  - OpenTelemetry support
-  - Correlation ID tracking
-
-### Performance & Scaling
-- 🚄 High-Performance Mode
-  - Zero-copy logging
-  - Lock-free implementation
-  - Memory-mapped files
-- 🎯 Load Balancing
-  - Dynamic log routing
-  - Automatic failover
-  - Horizontal scaling
-
-### Monitoring & Alerting
-- 📡 Real-time Monitoring
-  - Custom metrics export
-  - Prometheus integration
-  - Health check endpoints
-- ⚡ Alert System
-  - Configurable thresholds
-  - Multiple notification channels
-  - Alert aggregation
-
-### Additional Features
-- 🔄 Log Rotation
-  - Size-based rotation
-  - Time-based rotation
-  - Compression support
-- 🎨 Advanced Formatting
-  - Custom template engine
-  - Multiple output formats
-  - Dynamic field masking
-- 🧪 Testing Tools
-  - Mock logger implementation
-  - Assertion helpers
-  - Performance benchmarks
-
-These features are in various stages of planning and development. Contributions and feedback are welcome!
+### v1.0.0 (2025-04-04)
+- Initial release
+- Basic logging functionality
+- Text formatter
+- Multiple log levels
+- Thread-safe logging
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.

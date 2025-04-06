@@ -1,4 +1,4 @@
-use loggix::{Logger, with_fields};
+use loggix::{with_fields, Logger};
 
 fn main() {
     // Initialize a custom logger
@@ -14,7 +14,8 @@ fn main() {
     .unwrap();
 
     // Add fields using with_field
-    logger.with_fields(Default::default())
+    logger
+        .with_fields(Default::default())
         .with_field("request_id", "abc-123")
         .with_field("path", "/api/v1/users")
         .with_field("method", "GET")

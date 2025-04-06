@@ -1,4 +1,4 @@
-use loggix::{Logger, with_fields};
+use loggix::{with_fields, Logger};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -6,7 +6,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let logger = Logger::new().build();
 
     // Basic logging
-    logger.with_fields(Default::default())
+    logger
+        .with_fields(Default::default())
         .info("Starting application...")?;
 
     // Debug with request details

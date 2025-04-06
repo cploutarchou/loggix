@@ -1,4 +1,4 @@
-use loggix::{info, debug, warn, error};
+use loggix::{debug, error, info, warn};
 
 fn main() {
     // Basic logging with different levels

@@ -1,4 +1,4 @@
-use loggix::{Logger, JSONFormatter, Fields};
+use loggix::{Fields, JSONFormatter, Logger};
 
 fn main() {
     // Create a logger with JSON formatter

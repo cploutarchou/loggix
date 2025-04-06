@@ -1,0 +1,8 @@
+kafka:
+  bootstrap_servers: "localhost:9092"
+  group_id: "test_group"
+  auto_offset_reset: "earliest"
+  socket_timeout_ms: 3000
+  session_timeout_ms: 6000
+  replication_factor: 1
+  partitions: 1
