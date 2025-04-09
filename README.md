@@ -203,27 +203,7 @@ kafka:
 
 ## Changelog
 
-### v1.0.2 (2025-04-06)
-- Added support for Kafka message keys
-- Added asynchronous logging with `log_async`
-- Fixed race conditions in Kafka topic creation
-- Improved error handling in Kafka integration
-- Added benchmarks for sync and async logging
-- Added more examples and documentation
-
-### v1.0.1 (2025-04-05)
-- Added Kafka integration
-- Added hook system for log processing
-- Added JSON formatter
-- Added structured logging with fields
-- Added colorized console output
-
-### v1.0.0 (2025-04-04)
-- Initial release
-- Basic logging functionality
-- Text formatter
-- Multiple log levels
-- Thread-safe logging
+For a detailed list of changes between versions, please see our [CHANGELOG](CHANGELOG.md).
 
 ## License
 
