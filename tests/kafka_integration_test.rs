@@ -1,3 +1,4 @@
+use chrono;
 use loggix::{KafkaHook, Level, Logger};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -5,12 +6,11 @@ use rdkafka::{
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     ClientConfig, Message,
 };
-use std::{fs, path::Path, time::Duration};
-use tokio;
 use serde::Deserialize;
-use chrono;
 use serde_json;
 use serde_yaml;
+use std::{fs, path::Path, time::Duration};
+use tokio;
 
 #[derive(Debug, Deserialize)]
 struct KafkaConfig {
@@ -59,9 +59,12 @@ fn get_kafka_config() -> KafkaConfig {
         })
 }
 
-async fn ensure_topic_exists(topic: &str, config: &KafkaConfig) -> Result<(), Box<dyn std::error::Error>> {
+async fn ensure_topic_exists(
+    topic: &str,
+    config: &KafkaConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Checking if topic {} exists...", topic);
-    
+
     // Create admin client to create topic
     let admin_client: AdminClient<DefaultClientContext> = ClientConfig::new()
         .set("bootstrap.servers", &config.bootstrap_servers)
@@ -76,7 +79,10 @@ async fn ensure_topic_exists(topic: &str, config: &KafkaConfig) -> Result<(), Bo
     )];
 
     // Ignore error if topic already exists
-    match admin_client.create_topics(&topics, &AdminOptions::new()).await {
+    match admin_client
+        .create_topics(&topics, &AdminOptions::new())
+        .await
+    {
         Ok(_) => println!("Topic {} created successfully", topic),
         Err(e) => println!("Topic creation returned: {}", e),
     }
@@ -147,10 +153,19 @@ async fn test_kafka_hook_integration() -> Result<(), Box<dyn std::error::Error>>
     // Send a test log message with a correlation ID
     let test_message = "Test log message";
     let correlation_id = "test-123";
-    println!("Sending test message: {} with correlation_id: {}", test_message, correlation_id);
+    println!(
+        "Sending test message: {} with correlation_id: {}",
+        test_message, correlation_id
+    );
     let mut fields = std::collections::HashMap::new();
-    fields.insert("test_key".to_string(), serde_json::Value::String("test_value".to_string()));
-    fields.insert("correlation_id".to_string(), serde_json::Value::String(correlation_id.to_string()));
+    fields.insert(
+        "test_key".to_string(),
+        serde_json::Value::String("test_value".to_string()),
+    );
+    fields.insert(
+        "correlation_id".to_string(),
+        serde_json::Value::String(correlation_id.to_string()),
+    );
     logger.log_async(Level::Info, test_message, fields).await?;
 
     // Wait a bit for the message to be delivered
@@ -159,11 +174,10 @@ async fn test_kafka_hook_integration() -> Result<(), Box<dyn std::error::Error>>
 
     // Try to consume the message with a timeout
     println!("Attempting to consume message...");
-    let message = consumer.recv().await
-        .map_err(|e| {
-            println!("Failed to receive message: {:?}", e);
-            e
-        })?;
+    let message = consumer.recv().await.map_err(|e| {
+        println!("Failed to receive message: {:?}", e);
+        e
+    })?;
 
     // Verify the message content
     println!("Verifying message content...");

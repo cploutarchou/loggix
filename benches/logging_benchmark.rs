@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use loggix::{Fields, Level, Logger, TextFormatter};
-use std::io::Write;
 use serde_json::Value;
+use std::io::Write;
 
 struct NullWriter;
 
@@ -26,13 +26,7 @@ fn bench_sync_logging(c: &mut Criterion) {
     fields.insert("key2".to_string(), Value::String("value2".to_string()));
 
     c.bench_function("sync_logging", |b| {
-        b.iter(|| {
-            black_box(logger.log(
-                Level::Info,
-                "Test log message",
-                fields.clone(),
-            ))
-        })
+        b.iter(|| black_box(logger.log(Level::Info, "Test log message", fields.clone())))
     });
 }
 
@@ -50,11 +44,11 @@ fn bench_async_logging(c: &mut Criterion) {
     c.bench_function("async_logging", |b| {
         b.iter(|| {
             rt.block_on(async {
-                black_box(logger.log_async(
-                    Level::Info,
-                    "Test log message",
-                    fields.clone(),
-                ).await)
+                black_box(
+                    logger
+                        .log_async(Level::Info, "Test log message", fields.clone())
+                        .await,
+                )
             })
         })
     });

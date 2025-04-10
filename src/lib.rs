@@ -197,7 +197,12 @@ pub trait Hook: Send + Sync {
 
     /// Fire the hook asynchronously for a log entry
     #[allow(unused_variables)]
-    fn fire_async<'a>(&'a self, entry: &'a Entry) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send + 'a>> {
+    fn fire_async<'a>(
+        &'a self,
+        entry: &'a Entry,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send + 'a>,
+    > {
         Box::pin(async move { self.fire(entry) })
     }
 }
@@ -357,9 +362,9 @@ impl KafkaHook {
 
     fn get_key_from_fields(&self, fields: &Fields) -> Option<String> {
         self.key_field.as_ref().and_then(|key_field| {
-            fields.get(key_field).and_then(|value| {
-                value.as_str().map(|s| s.to_string())
-            })
+            fields
+                .get(key_field)
+                .and_then(|value| value.as_str().map(|s| s.to_string()))
         })
     }
 }
@@ -382,14 +387,18 @@ impl Hook for KafkaHook {
         Err("KafkaHook requires an async runtime. Please use fire_async or ensure you're in an async context.".into())
     }
 
-    fn fire_async<'a>(&'a self, entry: &'a Entry) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send + 'a>> {
+    fn fire_async<'a>(
+        &'a self,
+        entry: &'a Entry,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send + 'a>,
+    > {
         Box::pin(async move {
             let payload = serde_json::to_string(&entry)?;
             let key = self.get_key_from_fields(&entry.fields);
-            
-            let mut record = FutureRecord::to(&self.topic)
-                .payload(payload.as_bytes());
-            
+
+            let mut record = FutureRecord::to(&self.topic).payload(payload.as_bytes());
+
             if let Some(ref key) = key {
                 record = record.key(key);
             }
@@ -806,7 +815,16 @@ mod test {
             Ok(())
         }
 
-        fn fire_async<'a>(&'a self, entry: &'a Entry) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send + 'a>> {
+        fn fire_async<'a>(
+            &'a self,
+            entry: &'a Entry,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error>>>
+                    + Send
+                    + 'a,
+            >,
+        > {
             Box::pin(async move { self.fire(entry) })
         }
     }
@@ -824,7 +842,9 @@ mod test {
     #[test]
     fn test_basic_logging() {
         let (logger, writer) = create_test_logger();
-        logger.log(Level::Info, "test message", Fields::new()).unwrap();
+        logger
+            .log(Level::Info, "test message", Fields::new())
+            .unwrap();
         let output = String::from_utf8(writer.buffer.lock().unwrap().clone()).unwrap();
         assert!(output.contains("test message"));
     }
@@ -850,11 +870,11 @@ mod test {
     #[test]
     fn test_hooks() {
         let (hook, called) = TestHook::new();
-        let logger = Logger::new()
-            .add_hook(hook)
-            .build();
+        let logger = Logger::new().add_hook(hook).build();
 
-        logger.log(Level::Info, "test message", Fields::new()).unwrap();
+        logger
+            .log(Level::Info, "test message", Fields::new())
+            .unwrap();
         assert!(*called.lock().unwrap());
     }
 
@@ -911,13 +931,27 @@ mod test {
             .build();
 
         // Test each log level
-        logger.log(Level::Trace, "trace message", Fields::new()).unwrap();
-        logger.log(Level::Debug, "debug message", Fields::new()).unwrap();
-        logger.log(Level::Info, "info message", Fields::new()).unwrap();
-        logger.log(Level::Warn, "warn message", Fields::new()).unwrap();
-        logger.log(Level::Error, "error message", Fields::new()).unwrap();
-        logger.log(Level::Fatal, "fatal message", Fields::new()).unwrap();
-        logger.log(Level::Panic, "panic message", Fields::new()).unwrap();
+        logger
+            .log(Level::Trace, "trace message", Fields::new())
+            .unwrap();
+        logger
+            .log(Level::Debug, "debug message", Fields::new())
+            .unwrap();
+        logger
+            .log(Level::Info, "info message", Fields::new())
+            .unwrap();
+        logger
+            .log(Level::Warn, "warn message", Fields::new())
+            .unwrap();
+        logger
+            .log(Level::Error, "error message", Fields::new())
+            .unwrap();
+        logger
+            .log(Level::Fatal, "fatal message", Fields::new())
+            .unwrap();
+        logger
+            .log(Level::Panic, "panic message", Fields::new())
+            .unwrap();
 
         let output = String::from_utf8(writer.buffer.lock().unwrap().clone()).unwrap();
 
